@@ -24,6 +24,8 @@ contract Bartender is Ownable, ReentrancyGuard {
     struct UserInfo {
         uint256 amount; // How many LP tokens the user has provided.
         uint256 rewardDebt; // Reward debt. See explanation below.
+        uint256 rewardLockedUp; // Reward locked up
+        uint256 nextHarvestUntil; // When can the user harvest again
         //
         // We do some fancy math here. Basically, any point in time, the amount of $DAIKIs
         // entitled to a user but is pending to be distributed is:
@@ -43,14 +45,17 @@ contract Bartender is Ownable, ReentrancyGuard {
         uint256 allocPoint; // How many allocation points assigned to this pool. DAIKIs to distribute per block.
         uint256 lastRewardBlock; // Last block number that DAIKIs distribution occurs.
         uint256 accDaikiPerShare; // Accumulated DAIKIs per share, times 1e18. See below.
+        uint256 harvestInterval; // Harvest interval in seconds
     }
 
     // The DAIKI TOKEN!
     DaikiToken public daiki;
+    // DAO address
     address public daoAddress;
-
     // DAIKI tokens created per block.
-    uint256 public daikiPerBlock = 1 ether;
+    uint256 public daikiPerBlock;
+    // Max harvest interval: 14 days
+    uint256 public constant MAXIMUM_HARVEST_INTERVAL = 2592000; // 30 days
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -60,6 +65,8 @@ contract Bartender is Ownable, ReentrancyGuard {
     uint256 public totalAllocPoint = 0;
     // The block number when DAIKI mining starts.
     uint256 public startBlock;
+    // Total locked up rewards
+    uint256 public totalLockedUpRewards;
 
     // Daiki referral contract address.
     IReferral public referral;
@@ -79,11 +86,13 @@ contract Bartender is Ownable, ReentrancyGuard {
     constructor(
         DaikiToken _daiki,
         uint256 _startBlock,
-        address _daoAddress
+        address _daoAddress,
+        uint256 _daikiPerBlock
     ) Ownable() {
         daiki = _daiki;
         startBlock = _startBlock;
         daoAddress = _daoAddress;
+        daikiPerBlock = _daikiPerBlock;
 
         // Create Staking Pool
         poolInfo.push(
@@ -91,7 +100,8 @@ contract Bartender is Ownable, ReentrancyGuard {
                 lpToken: _daiki,
                 allocPoint: 1000,
                 lastRewardBlock: startBlock,
-                accDaikiPerShare: 0
+                accDaikiPerShare: 0,
+                harvestInterval: 7200 // 2h
             })
         );
 
@@ -111,13 +121,18 @@ contract Bartender is Ownable, ReentrancyGuard {
     }
 
     // Add a new lp to the pool. Can only be called by the owner.
-    function add(uint256 _allocPoint, IERC20 _lpToken)
-        external
-        onlyOwner
-        nonDuplicated(_lpToken)
-    {
-        uint256 lastRewardBlock =
-            block.number > startBlock ? block.number : startBlock;
+    function add(
+        uint256 _allocPoint,
+        IERC20 _lpToken,
+        uint256 _harvestInterval
+    ) external onlyOwner nonDuplicated(_lpToken) {
+        require(
+            _harvestInterval <= MAXIMUM_HARVEST_INTERVAL,
+            "add: invalid harvest interval"
+        );
+        uint256 lastRewardBlock = block.number > startBlock
+            ? block.number
+            : startBlock;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
         poolExistence[_lpToken] = true;
         poolInfo.push(
@@ -125,17 +140,27 @@ contract Bartender is Ownable, ReentrancyGuard {
                 lpToken: _lpToken,
                 allocPoint: _allocPoint,
                 lastRewardBlock: lastRewardBlock,
-                accDaikiPerShare: 0
+                accDaikiPerShare: 0,
+                harvestInterval: _harvestInterval 
             })
         );
     }
 
     // Update the given pool's DAIKI allocation point. Can only be called by the owner.
-    function set(uint256 _pid, uint256 _allocPoint) external onlyOwner {
+    function set(
+        uint256 _pid,
+        uint256 _allocPoint,
+        uint256 _harvestInterval
+    ) external onlyOwner {
+        require(
+            _harvestInterval <= MAXIMUM_HARVEST_INTERVAL,
+            "set: invalid harvest interval"
+        );
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(
             _allocPoint
         );
         poolInfo[_pid].allocPoint = _allocPoint;
+        poolInfo[_pid].harvestInterval = _harvestInterval;
     }
 
     // Return reward multiplier over the given _from to _to block.
@@ -158,17 +183,32 @@ contract Bartender is Ownable, ReentrancyGuard {
         uint256 accDaikiPerShare = pool.accDaikiPerShare;
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
-            uint256 multiplier =
-                getMultiplier(pool.lastRewardBlock, block.number);
-            uint256 daikiReward =
-                multiplier.mul(daikiPerBlock).mul(pool.allocPoint).div(
-                    totalAllocPoint
-                );
+            uint256 multiplier = getMultiplier(
+                pool.lastRewardBlock,
+                block.number
+            );
+            uint256 daikiReward = multiplier
+            .mul(daikiPerBlock)
+            .mul(pool.allocPoint)
+            .div(totalAllocPoint);
             accDaikiPerShare = accDaikiPerShare.add(
                 daikiReward.mul(1e18).div(lpSupply)
             );
         }
-        return user.amount.mul(accDaikiPerShare).div(1e18).sub(user.rewardDebt);
+        uint256 pending = user.amount.mul(accDaikiPerShare).div(1e18).sub(
+            user.rewardDebt
+        );
+        return pending.add(user.rewardLockedUp);
+    }
+
+    // View function to see if user can harvest DAIKIs
+    function canHarvest(uint256 _pid, address _user)
+        public
+        view
+        returns (bool)
+    {
+        UserInfo storage user = userInfo[_pid][_user];
+        return block.timestamp >= user.nextHarvestUntil;
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
@@ -191,10 +231,10 @@ contract Bartender is Ownable, ReentrancyGuard {
             return;
         }
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-        uint256 daikiReward =
-            multiplier.mul(daikiPerBlock).mul(pool.allocPoint).div(
-                totalAllocPoint
-            );
+        uint256 daikiReward = multiplier
+        .mul(daikiPerBlock)
+        .mul(pool.allocPoint)
+        .div(totalAllocPoint);
         daiki.mint(daoAddress, daikiReward.div(10));
         daiki.mint(address(this), daikiReward);
         pool.accDaikiPerShare = pool.accDaikiPerShare.add(
@@ -220,16 +260,7 @@ contract Bartender is Ownable, ReentrancyGuard {
         ) {
             referral.recordReferral(msg.sender, _referrer);
         }
-        if (user.amount > 0) {
-            uint256 pending =
-                user.amount.mul(pool.accDaikiPerShare).div(1e18).sub(
-                    user.rewardDebt
-                );
-            if (pending > 0) {
-                safeDaikiTransfer(msg.sender, pending);
-                payReferralCommission(msg.sender, pending);
-            }
-        }
+        payOrLockupPendingDaiki(_pid);
         if (_amount > 0) {
             pool.lpToken.safeTransferFrom(
                 address(msg.sender),
@@ -248,14 +279,7 @@ contract Bartender is Ownable, ReentrancyGuard {
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
         updatePool(_pid);
-        uint256 pending =
-            user.amount.mul(pool.accDaikiPerShare).div(1e18).sub(
-                user.rewardDebt
-            );
-        if (pending > 0) {
-            safeDaikiTransfer(msg.sender, pending);
-            payReferralCommission(msg.sender, pending);
-        }
+        payOrLockupPendingDaiki(_pid);
         if (_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
@@ -271,8 +295,40 @@ contract Bartender is Ownable, ReentrancyGuard {
         uint256 amount = user.amount;
         user.amount = 0;
         user.rewardDebt = 0;
+        user.rewardLockedUp = 0;
+        user.nextHarvestUntil = 0;
         pool.lpToken.safeTransfer(address(msg.sender), amount);
         emit EmergencyWithdraw(msg.sender, _pid, amount);
+    }
+
+    // Pay or lockup pending DAIKIs
+    function payOrLockupPendingDaiki(uint256 _pid) internal {
+        PoolInfo storage pool = poolInfo[_pid];
+        UserInfo storage user = userInfo[_pid][msg.sender];
+
+        if (user.nextHarvestUntil == 0) {
+            user.nextHarvestUntil = block.timestamp.add(pool.harvestInterval);
+        }
+
+        uint256 pending = user.amount.mul(pool.accDaikiPerShare).div(1e18).sub(user.rewardDebt);
+        if (canHarvest(_pid, msg.sender)) {
+            if (pending > 0 || user.rewardLockedUp > 0) {
+                uint256 totalRewards = pending.add(user.rewardLockedUp);
+
+                // reset lockup
+                totalLockedUpRewards = totalLockedUpRewards.sub(user.rewardLockedUp);
+                user.rewardLockedUp = 0;
+                user.nextHarvestUntil = block.timestamp.add(pool.harvestInterval);
+
+                // send rewards
+                safeDaikiTransfer(msg.sender, totalRewards);
+                payReferralCommission(msg.sender, totalRewards);
+            }
+        } else if (pending > 0) {
+            user.rewardLockedUp = user.rewardLockedUp.add(pending);
+            totalLockedUpRewards = totalLockedUpRewards.add(pending);
+            emit RewardLockedUp(msg.sender, _pid, pending);
+        }
     }
 
     // Safe daiki transfer function, just in case if rounding error causes pool to not have enough DAIKI.
@@ -321,8 +377,9 @@ contract Bartender is Ownable, ReentrancyGuard {
     function payReferralCommission(address _user, uint256 _pending) internal {
         if (address(referral) != address(0) && referralCommissionRate > 0) {
             address referrer = referral.getReferrer(_user);
-            uint256 commissionAmount =
-                _pending.mul(referralCommissionRate).div(10000);
+            uint256 commissionAmount = _pending.mul(referralCommissionRate).div(
+                10000
+            );
 
             if (referrer != address(0) && commissionAmount > 0) {
                 daiki.mint(referrer, commissionAmount);
@@ -356,4 +413,9 @@ contract Bartender is Ownable, ReentrancyGuard {
         address indexed referrer,
         uint256 commissionAmount
     );
+    event RewardLockedUp(
+        address indexed user,
+        uint256 indexed pid,
+        uint256 amountLockedUp
+    );    
 }
