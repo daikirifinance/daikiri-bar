@@ -55,7 +55,7 @@ contract Bartender is Ownable, ReentrancyGuard {
     // DAIKI tokens created per block.
     uint256 public daikiPerBlock;
     // Max harvest interval: 14 days
-    uint256 public constant MAXIMUM_HARVEST_INTERVAL = 2592000; // 30 days
+    uint256 public constant MAXIMUM_HARVEST_INTERVAL = 21600; // 6 hrs
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
