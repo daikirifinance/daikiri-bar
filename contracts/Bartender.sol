@@ -82,6 +82,7 @@ contract Bartender is Ownable, ReentrancyGuard {
      * @param _daiki The address of the $DAIKI token
      * @param _startBlock The number when $DAIKI mining starts
      * @param _daoAddress DAO address
+     * @param _daikiPerBlock The number of $DAIKIs created every block
      */
     constructor(
         DaikiToken _daiki,
