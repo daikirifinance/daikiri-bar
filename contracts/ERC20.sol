@@ -4,7 +4,6 @@ pragma solidity =0.7.3;
 
 import "./interfaces/Context.sol";
 import "./interfaces/IERC20.sol";
-import "./interfaces/Ownable.sol";
 import "./libraries/SafeMath.sol";
 import "./libraries/Address.sol";
 
