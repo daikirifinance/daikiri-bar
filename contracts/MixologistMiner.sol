@@ -188,8 +188,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accRewardTokenPerShare = pool.accRewardTokenPerShare;
-        uint256 lpSupply = pool.stakingToken.balanceOf(address(this));
-        if (block.number > pool.lastRewardBlock && lpSupply != 0) {
+        uint256 stakedTokenSupply = pool.stakingToken.balanceOf(address(this));
+        if (block.number > pool.lastRewardBlock && stakedTokenSupply != 0) {
             uint256 multiplier = getMultiplier(
                 pool.lastRewardBlock,
                 block.number
@@ -199,7 +199,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
             .mul(pool.allocPoint)
             .div(totalAllocPoint);
             accRewardTokenPerShare = accRewardTokenPerShare.add(
-                rewardTokenReward.mul(PRECISION_FACTOR).div(lpSupply)
+                rewardTokenReward.mul(PRECISION_FACTOR).div(stakedTokenSupply)
             );
         }
         uint256 pending = user
@@ -234,8 +234,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         if (block.number <= pool.lastRewardBlock) {
             return;
         }
-        uint256 lpSupply = pool.stakingToken.balanceOf(address(this));
-        if (lpSupply == 0 || pool.allocPoint == 0) {
+        uint256 stakedTokenSupply = pool.stakingToken.balanceOf(address(this));
+        if (stakedTokenSupply == 0 || pool.allocPoint == 0) {
             pool.lastRewardBlock = block.number;
             return;
         }
@@ -246,7 +246,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         .div(totalAllocPoint);
         
         pool.accRewardTokenPerShare = pool.accRewardTokenPerShare.add(
-            rewardTokenReward.mul(PRECISION_FACTOR).div(lpSupply)
+            rewardTokenReward.mul(PRECISION_FACTOR).div(stakedTokenSupply)
         );
         pool.lastRewardBlock = block.number;
     }
