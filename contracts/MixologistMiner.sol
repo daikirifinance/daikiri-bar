@@ -487,6 +487,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         public
         returns (bool success)
     {
+        require(block.number >= startBlock, "Mining has not started");
+
         // The PoW must contain work that includes a recent block hash (challenge number) and the msg.sender's address
         // to prevent MITM attacks.
         bytes32 digest = keccak256(
