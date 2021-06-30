@@ -244,8 +244,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         .mul(rewardTokenPerBlock)
         .mul(pool.allocPoint)
         .div(totalAllocPoint);
-        // rewardToken.mint(daoAddress, rewardTokenReward.div(10));
-        // rewardToken.mint(address(this), rewardTokenReward);
+        
         pool.accRewardTokenPerShare = pool.accRewardTokenPerShare.add(
             rewardTokenReward.mul(PRECISION_FACTOR).div(lpSupply)
         );
@@ -465,7 +464,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     bytes32 public challengeNumber; // generate a new one when reward is minted
 
     // uint256 public rewardEra;
-    uint256 public maxSupplyEra;
+    // uint256 public maxSupplyEra;
 
     address public lastRewardTo;
     uint256 public lastRewardAmount;
