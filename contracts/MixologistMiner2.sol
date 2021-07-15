@@ -58,7 +58,7 @@ contract MixologistMiner2 is Ownable, ReentrancyGuard {
     uint256 public PRECISION_FACTOR;
 
     // Mining reward
-    uint256 miningReward;
+    uint256 public miningReward;
 
     // DAO address
     address public daoAddress;
