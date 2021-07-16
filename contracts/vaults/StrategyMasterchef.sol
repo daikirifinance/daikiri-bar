@@ -28,13 +28,12 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
     
     address public uniRouterAddress;
     address public daikiRouterAddress;
-    address public constant wethAddress = 0xcF664087a5bB0237a0BAd6742852ec6c8d69A27a; // WONE
-    address public constant usdcAddress = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
-    address public constant daikiAddress = 0x3a3Df212b7AA91Aa0402B9035b098891d276572B;
-    address public constant rewardAddress = 0x917FB15E8aAA12264DCBdC15AFef7cD3cE76BA39;
-    address public constant vaultAddress = 0x4879712c5D1A98C0B88Fb700daFF5c65d12Fd729;
-    address public constant feeAddress = 0x1cb757f1eB92F25A917CE9a92ED88c1aC0734334;
-    address public constant withdrawFeeAddress = 0x47231b2EcB18b7724560A78cd7191b121f53FABc;
+    address public rewardPoolAddress;
+    address public constant wethAddress = 0xcF664087a5bB0237a0BAd6742852ec6c8d69A27a; 
+    address public constant rewardTokenAddress = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174; 
+    address public constant daikiAddress = 0x3a3Df212b7AA91Aa0402B9035b098891d276572B; 
+    address public constant feeAddress = 0xE768c11Ce3250f65B57c08e0AfEFda1Df81f8f5c; 
+    address public constant withdrawFeeAddress = 0xD12Bc198269A14475BaF42Fa38967F0075E9DF1e; 
     address public govAddress;
 
     uint256 public lastEarnBlock = block.number;
@@ -55,7 +54,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant slippageFactorUL = 995;
 
     address[] public earnedToWETHPath;
-    address[] public earnedToUsdcPath;      
+    address[] public earnedToRewardTokenPath;      
     address[] public wethToDaikiPath;
     address[] public earnedToToken0Path;
     address[] public earnedToToken1Path;
@@ -65,13 +64,14 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
     constructor(
         address _vaultChefAddress,
         address _masterchefAddress,
+        address _rewardPoolAddress,
         address _uniRouterAddress,
         address _daikiRouterAddress,
         uint256 _pid,
         address _wantAddress,
         address _earnedAddress,
         address[] memory _earnedToWETHPath,
-        address[] memory _earnedToUsdcPath,        
+        address[] memory _earnedToRewardTokenPath,        
         address[] memory _wethToDaikiPath,
         address[] memory _earnedToToken0Path,
         address[] memory _earnedToToken1Path,
@@ -81,6 +81,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         govAddress = msg.sender;
         vaultChefAddress = _vaultChefAddress;
         masterchefAddress = _masterchefAddress;
+        rewardPoolAddress = _rewardPoolAddress;
         uniRouterAddress = _uniRouterAddress;
         daikiRouterAddress = _daikiRouterAddress;
 
@@ -92,7 +93,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         earnedAddress = _earnedAddress;
 
         earnedToWETHPath = _earnedToWETHPath;
-        earnedToUsdcPath = _earnedToUsdcPath;        
+        earnedToRewardTokenPath = _earnedToRewardTokenPath;        
         wethToDaikiPath = _wethToDaikiPath;
         earnedToToken0Path = _earnedToToken0Path;
         earnedToToken1Path = _earnedToToken1Path;
@@ -179,7 +180,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         uint256 withdrawFee = _wantAmt
             .mul(withdrawFeeFactorMax.sub(withdrawFeeFactor))
             .div(withdrawFeeFactorMax);
-        IERC20(wantAddress).safeTransfer(vaultAddress, withdrawFee);
+        IERC20(wantAddress).safeTransfer(withdrawFeeAddress, withdrawFee);
         
         _wantAmt = _wantAmt.sub(withdrawFee);
 
@@ -263,18 +264,18 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         if (rewardRate > 0) {
             uint256 fee = _earnedAmt.mul(rewardRate).div(feeMax);
     
-            uint256 usdcBefore = IERC20(usdcAddress).balanceOf(address(this));
+            uint256 rewardTokenBefore = IERC20(rewardTokenAddress).balanceOf(address(this));
             
             _safeSwap(
                 fee,
-                earnedToUsdcPath,
+                earnedToRewardTokenPath,
                 address(this),
                 uniRouterAddress
             );
             
-            uint256 usdcAfter = IERC20(usdcAddress).balanceOf(address(this)).sub(usdcBefore);
+            uint256 rewardTokenAfter = IERC20(rewardTokenAddress).balanceOf(address(this)).sub(rewardTokenBefore);
             
-            IStrategyDaiki(rewardAddress).depositReward(usdcAfter);
+            IERC20(rewardTokenAddress).safeTransfer(rewardPoolAddress, rewardTokenAfter);
             
             _earnedAmt = _earnedAmt.sub(fee);
         }
@@ -286,15 +287,14 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         if (buyBackRate > 0) {
             uint256 buyBackAmt = _earnedAmt.mul(buyBackRate).div(feeMax);
     
-            // Swap earned tokens to WETH in the external AMM
+            // Swap earned tokens to WETH in external AMM
             _safeSwap(
                 buyBackAmt,
                 earnedToWETHPath,
                 address(this),
                 uniRouterAddress
             );
-
-            // Get WETH balance in contract
+            
             uint256 wethBalance = IERC20(wethAddress).balanceOf(address(this));
 
             // Buy back DAIKI with WETH on DaikiriSwap
@@ -386,9 +386,9 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
             uint256(-1)
         );
 
-        IERC20(usdcAddress).safeApprove(rewardAddress, uint256(0));
-        IERC20(usdcAddress).safeIncreaseAllowance(
-            rewardAddress,
+        IERC20(rewardTokenAddress).safeApprove(rewardPoolAddress, uint256(0));
+        IERC20(rewardTokenAddress).safeIncreaseAllowance(
+            rewardPoolAddress,
             uint256(-1)
         );
 
@@ -420,7 +420,8 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         uint256 _withdrawFeeFactor,
         uint256 _slippageFactor,
         address _uniRouterAddress,
-        address _daikiRouterAddress
+        address _daikiRouterAddress,
+        address _rewardPoolAddress
     ) external onlyGov {
         require(_controllerFee.add(_rewardRate).add(_buyBackRate) <= feeMaxTotal, "Max fee of 10%");
         require(_withdrawFeeFactor >= withdrawFeeFactorLL, "_withdrawFeeFactor too low");
@@ -433,6 +434,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         slippageFactor = _slippageFactor;
         uniRouterAddress = _uniRouterAddress;
         daikiRouterAddress = _daikiRouterAddress;
+        rewardPoolAddress = _rewardPoolAddress;
 
         emit SetSettings(
             _controllerFee,
