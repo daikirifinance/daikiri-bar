@@ -8,6 +8,7 @@ import "../libraries/SafeERC20.sol";
 import "../libraries/EnumerableSet.sol";
 import "./Operators.sol";
 import "./libs/IStrategy.sol";
+import "hardhat/console.sol";
 
 contract VaultChef is Ownable, ReentrancyGuard, Operators {
     using SafeMath for uint256;
@@ -78,7 +79,7 @@ contract VaultChef is Ownable, ReentrancyGuard, Operators {
     function _deposit(uint256 _pid, uint256 _wantAmt, address _to) internal {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_to];
-
+        
         if (_wantAmt > 0) {
             pool.want.safeTransferFrom(msg.sender, address(this), _wantAmt);
 

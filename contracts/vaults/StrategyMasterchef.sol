@@ -13,6 +13,7 @@ import "./libs/IMasterchef.sol";
 import "./libs/IStrategyDaiki.sol";
 import "./libs/IUniPair.sol";
 import "./libs/IUniRouter02.sol";
+import "hardhat/console.sol";
 
 contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
     using SafeMath for uint256;
@@ -30,8 +31,8 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
     address public daikiRouterAddress;
     address public rewardPoolAddress;
     address public constant wethAddress = 0xcF664087a5bB0237a0BAd6742852ec6c8d69A27a; 
-    address public constant rewardTokenAddress = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174; 
-    address public constant daikiAddress = 0x3a3Df212b7AA91Aa0402B9035b098891d276572B; 
+    address public constant rewardTokenAddress = 0xcF664087a5bB0237a0BAd6742852ec6c8d69A27a; 
+    address public constant daikiAddress = 0xF315803Ba9dA293765ab163E7dB98E8d6Df6D361; 
     address public constant feeAddress = 0xE768c11Ce3250f65B57c08e0AfEFda1Df81f8f5c; 
     address public constant withdrawFeeAddress = 0xD12Bc198269A14475BaF42Fa38967F0075E9DF1e; 
     address public govAddress;
@@ -123,7 +124,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
     function deposit(address _userAddress, uint256 _wantAmt) external onlyOwner nonReentrant whenNotPaused returns (uint256) {
         // Call must happen before transfer
         uint256 wantLockedBefore = wantLockedTotal();
-
+        
         IERC20(wantAddress).safeTransferFrom(
             address(msg.sender),
             address(this),
@@ -145,7 +146,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         if (wantAmt == 0) return 0;
         
         uint256 sharesBefore = vaultSharesTotal();
-        IMasterchef(masterchefAddress).deposit(pid, wantAmt);
+        IMasterchef(masterchefAddress).deposit(pid, wantAmt, address(0));
         uint256 sharesAfter = vaultSharesTotal();
         
         return sharesAfter.sub(sharesBefore);
@@ -384,13 +385,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         IERC20(token1Address).safeIncreaseAllowance(
             uniRouterAddress,
             uint256(-1)
-        );
-
-        IERC20(rewardTokenAddress).safeApprove(rewardPoolAddress, uint256(0));
-        IERC20(rewardTokenAddress).safeIncreaseAllowance(
-            rewardPoolAddress,
-            uint256(-1)
-        );
+        );        
 
         IERC20(wethAddress).safeApprove(daikiRouterAddress, uint256(0));
         IERC20(wethAddress).safeIncreaseAllowance(
