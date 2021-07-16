@@ -13,7 +13,6 @@ import "./libs/IMasterchef.sol";
 import "./libs/IStrategyDaiki.sol";
 import "./libs/IUniPair.sol";
 import "./libs/IUniRouter02.sol";
-import "hardhat/console.sol";
 
 contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
     using SafeMath for uint256;
