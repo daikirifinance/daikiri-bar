@@ -13,8 +13,10 @@ import "./libs/IMasterchef.sol";
 import "./libs/IStrategyDaiki.sol";
 import "./libs/IUniPair.sol";
 import "./libs/IUniRouter02.sol";
+import "./libs/ILockedToken.sol";
 
-contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
+
+contract StrategyMasterLocker is Ownable, ReentrancyGuard, Pausable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -41,7 +43,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
 
     address public constant buyBackAddress = 0x000000000000000000000000000000000000dEaD;
     uint256 public controllerFee = 50;
-    uint256 public rewardRate = 0;
+    uint256 public rewardRate = 100;
     uint256 public buyBackRate = 450;
     uint256 public constant feeMaxTotal = 1000;
     uint256 public constant feeMax = 10000; // 100 = 1%
@@ -121,6 +123,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
     }
     
     function deposit(address _userAddress, uint256 _wantAmt) external onlyOwner nonReentrant whenNotPaused returns (uint256) {
+       
         // Call must happen before transfer
         uint256 wantLockedBefore = wantLockedTotal();
         
@@ -129,7 +132,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
             address(this),
             _wantAmt
         );
-
+        
         // Proper deposit amount for tokens with fees, or vaults with deposit fees
         uint256 sharesAdded = _farm();
         if (sharesTotal > 0) {
@@ -145,7 +148,9 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         if (wantAmt == 0) return 0;
         
         uint256 sharesBefore = vaultSharesTotal();
-        IMasterchef(masterchefAddress).deposit(pid, wantAmt, address(0));
+        
+        IMasterchef(masterchefAddress).deposit(pid, wantAmt, address(this));
+        
         uint256 sharesAfter = vaultSharesTotal();
         
         return sharesAfter.sub(sharesBefore);
@@ -158,7 +163,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
         
         // Check if strategy has tokens from panic
         if (_wantAmt > wantAmt) {
-            IMasterchef(masterchefAddress).withdraw(pid, _wantAmt.sub(wantAmt));
+            IMasterchef(masterchefAddress).withdraw(pid, _wantAmt.sub(wantAmt), address(this));
             wantAmt = IERC20(wantAddress).balanceOf(address(this));
         }
 
@@ -191,7 +196,7 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
 
     function earn() external nonReentrant whenNotPaused onlyGov {
         // Harvest farm tokens
-        IMasterchef(masterchefAddress).withdraw(pid, 0);
+        IMasterchef(masterchefAddress).withdraw(pid, 0, address(this));
 
         // Converts farm tokens into want tokens
         uint256 earnedAmt = IERC20(earnedAddress).balanceOf(address(this));
@@ -241,6 +246,10 @@ contract StrategyMasterchef is Ownable, ReentrancyGuard, Pausable {
     
             _farm();
         }
+    }
+
+    function unlock() external nonReentrant whenNotPaused onlyGov {
+        ILockedToken(earnedAddress).unlock();
     }
 
     // To pay for earn function
