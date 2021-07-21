@@ -662,8 +662,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
 
     function changeMiningReward(uint256 _miningReward)
         public
-        onlyOwner
-        returns (bool)
+        onlyOwner        
     {
         uint256 oldMiningReward = miningReward;
         miningReward = _miningReward;
@@ -671,8 +670,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
             address(rewardToken),
             miningReward,
             oldMiningReward
-        );
-        return true;
+        );        
     }
 
     event MiningRewardChanged(
