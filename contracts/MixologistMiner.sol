@@ -258,7 +258,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         uint256 _pid,
         uint256 _amount,
         address _referrer
-    ) public nonReentrant {
+    ) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
@@ -290,7 +290,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     }
 
     // Withdraw LP tokens from Mixologist.
-    function withdraw(uint256 _pid, uint256 _amount) public nonReentrant {
+    function withdraw(uint256 _pid, uint256 _amount) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
@@ -307,7 +307,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) public nonReentrant {
+    function emergencyWithdraw(uint256 _pid) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         uint256 amount = user.amount;
@@ -679,7 +679,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         return (digest == challenge_digest);
     }
 
-    function changeMiningReward(uint256 _miningReward) public onlyOwner {
+    function changeMiningReward(uint256 _miningReward) external onlyOwner {
         uint256 oldMiningReward = miningReward;
         miningReward = _miningReward;
         emit MiningRewardChanged(
