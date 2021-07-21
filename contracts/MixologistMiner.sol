@@ -58,7 +58,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     address public daoAddress;
     // REWARD_TOKEN tokens created per block.
     uint256 public rewardTokenPerBlock;
-    // Max harvest interval: 14 days
+    // Max harvest interval: 24 hrs
     uint256 public constant MAXIMUM_HARVEST_INTERVAL = 86400; // 24 hrs
 
     // Info of each pool.
@@ -459,14 +459,14 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     // number of 'blocks' mined
     uint256 public epochCount;
 
-    uint256 public _BLOCKS_PER_READJUSTMENT = 1024;
+    uint256 public constant _BLOCKS_PER_READJUSTMENT = 1024;
 
     // a little number
-    uint256 public _MINIMUM_TARGET = 2**16;
+    uint256 public constant _MINIMUM_TARGET = 2**16;
 
     // a big number is easier ; just find a solution that is smaller
     // uint256 public _MAXIMUM_TARGET = 2**224; bitcoin uses 224
-    uint256 public _MAXIMUM_TARGET = 2**234;
+    uint256 public constant _MAXIMUM_TARGET = 2**234;
 
     uint256 public miningTarget;
 
