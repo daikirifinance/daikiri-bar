@@ -270,11 +270,13 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         }
         payOrLockupPendingRewardToken(_pid);
         if (_amount > 0) {
+            uint256 balanceBefore = pool.stakingToken.balanceOf(address(this));
             pool.stakingToken.safeTransferFrom(
                 address(msg.sender),
                 address(this),
                 _amount
             );
+            _amount = pool.stakingToken.balanceOf(address(this)).sub(balanceBefore);
             user.amount = user.amount.add(_amount);
         }
         user.rewardDebt = user.amount.mul(pool.accRewardTokenPerShare).div(
