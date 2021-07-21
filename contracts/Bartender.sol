@@ -263,11 +263,13 @@ contract Bartender is Ownable, ReentrancyGuard {
         }
         payOrLockupPendingDaiki(_pid);
         if (_amount > 0) {
+            uint256 balanceBefore = pool.lpToken.balanceOf(address(this));
             pool.lpToken.safeTransferFrom(
                 address(msg.sender),
                 address(this),
                 _amount
             );
+            _amount = pool.lpToken.balanceOf(address(this)).sub(balanceBefore);
             user.amount = user.amount.add(_amount);
         }
         user.rewardDebt = user.amount.mul(pool.accDaikiPerShare).div(1e18);
