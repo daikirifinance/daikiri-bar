@@ -151,6 +151,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
                 harvestInterval: _harvestInterval
             })
         );
+        emit Add(_allocPoint, address(_stakingToken), _harvestInterval);
     }
 
     // Update the given pool's REWARD_TOKEN allocation point. Can only be called by the owner.
@@ -168,6 +169,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         );
         poolInfo[_pid].allocPoint = _allocPoint;
         poolInfo[_pid].harvestInterval = _harvestInterval;
+        emit Set(_pid, _allocPoint, _harvestInterval);
     }
 
     // Return reward multiplier over the given _from to _to block.
@@ -244,7 +246,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         .mul(rewardTokenPerBlock)
         .mul(pool.allocPoint)
         .div(totalAllocPoint);
-        
+
         pool.accRewardTokenPerShare = pool.accRewardTokenPerShare.add(
             rewardTokenReward.mul(PRECISION_FACTOR).div(stakedTokenSupply)
         );
@@ -276,7 +278,9 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
                 address(this),
                 _amount
             );
-            _amount = pool.stakingToken.balanceOf(address(this)).sub(balanceBefore);
+            _amount = pool.stakingToken.balanceOf(address(this)).sub(
+                balanceBefore
+            );
             user.amount = user.amount.add(_amount);
         }
         user.rewardDebt = user.amount.mul(pool.accRewardTokenPerShare).div(
@@ -419,12 +423,14 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         require(startBlock > block.number, "Farm already started");
         uint256 length = poolInfo.length;
 
-        for(uint256 pid = 0; pid < length; ++pid) {
+        for (uint256 pid = 0; pid < length; ++pid) {
             PoolInfo storage pool = poolInfo[pid];
             pool.lastRewardBlock = _startBlock;
         }
 
         startBlock = _startBlock;
+
+        emit UpdateStartBlock(_startBlock);
     }
 
     /* EVENTS */
@@ -451,6 +457,13 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         uint256 indexed pid,
         uint256 amountLockedUp
     );
+    event Add(
+        uint256 allocPoint,
+        address stakingToken,
+        uint256 harvestInterval
+    );
+    event Set(uint256 pid, uint256 allocPoint, uint256 harvestInterval);
+    event UpdateStartBlock(uint256 startBlock);
 
     /* PoW MINING */
 
@@ -517,10 +530,10 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         solutionForChallenge[challengeNumber] = digest;
 
         // prevent the same answer from awarding twice
-        if (solution != 0x0) {            
+        if (solution != 0x0) {
             _startNewMiningEpoch();
             return false;
-        }            
+        }
 
         // Get Reward Amount
         uint256 reward_amount = getMiningReward();
@@ -554,7 +567,13 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
 
         // Make the latest block hash a part of the next challenge for PoW to prevent pre-mining future blocks
         // do this last since this is a protection mechanism in the mint() function
-        challengeNumber = keccak256(abi.encodePacked(challengeNumber, address(this),blockhash(block.number - 1)));
+        challengeNumber = keccak256(
+            abi.encodePacked(
+                challengeNumber,
+                address(this),
+                blockhash(block.number - 1)
+            )
+        );
     }
 
     // https://en.bitcoin.it/wiki/Difficulty#What_is_the_formula_for_difficulty.3F
@@ -660,17 +679,14 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         return (digest == challenge_digest);
     }
 
-    function changeMiningReward(uint256 _miningReward)
-        public
-        onlyOwner        
-    {
+    function changeMiningReward(uint256 _miningReward) public onlyOwner {
         uint256 oldMiningReward = miningReward;
         miningReward = _miningReward;
         emit MiningRewardChanged(
             address(rewardToken),
             miningReward,
             oldMiningReward
-        );        
+        );
     }
 
     event MiningRewardChanged(
