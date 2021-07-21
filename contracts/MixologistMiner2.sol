@@ -525,9 +525,13 @@ contract MixologistMiner2 is Ownable, ReentrancyGuard {
         // Only allow one reward for each challenge
         bytes32 solution = solutionForChallenge[challengeNumber];
         solutionForChallenge[challengeNumber] = digest;
-        if (solution != 0x0)
-            revert("MixilogistMiner::mint:solution-already-used"); // prevent the same answer from awarding twice
-
+        
+        // prevent the same answer from awarding twice
+        if (solution != 0x0) {            
+            _startNewMiningEpoch();
+            return false;
+        }  
+        
         // Check collateral
         uint256 collateral_amount = collateralToken.balanceOf(msg.sender);
         require(collateral_amount >= requiredCollateralAmount, "MixologistMiner::mint:insufficient-collateral");
@@ -564,7 +568,7 @@ contract MixologistMiner2 is Ownable, ReentrancyGuard {
 
         // Make the latest block hash a part of the next challenge for PoW to prevent pre-mining future blocks
         // do this last since this is a protection mechanism in the mint() function
-        challengeNumber = blockhash((block.number - 1));
+        challengeNumber = keccak256(abi.encodePacked(challengeNumber, address(this),blockhash(block.number - 1)));
     }
 
     // https://en.bitcoin.it/wiki/Difficulty#What_is_the_formula_for_difficulty.3F
