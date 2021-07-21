@@ -425,6 +425,13 @@ contract MixologistMiner2 is Ownable, ReentrancyGuard {
     // Only update before start of farm
     function updateStartBlock(uint256 _startBlock) external onlyOwner {
         require(startBlock > block.number, "Farm already started");
+        uint256 length = poolInfo.length;
+
+        for(uint256 pid = 0; pid < length; ++pid) {
+            PoolInfo storage pool = poolInfo[pid];
+            pool.lastRewardBlock = _startBlock;
+        }
+
         startBlock = _startBlock;
     }
 
