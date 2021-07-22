@@ -8,6 +8,7 @@ import "./interfaces/IERC20.sol";
 import "./interfaces/Ownable.sol";
 import "./interfaces/ReentrancyGuard.sol";
 import "./interfaces/IReferral.sol";
+import "./DaikiToken.sol";
 
 // Mixologist is the master of new tokens. He can make new tokens and he is a fair guy.
 
@@ -46,7 +47,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     }
 
     // The REWARD_TOKEN TOKEN!
-    IERC20 public rewardToken;
+    DaikiToken public rewardToken;
 
     // Precission factor
     uint256 public PRECISION_FACTOR;
@@ -89,7 +90,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
      * @param _rewardTokenPerBlock The number of $REWARD_TOKENs created every block
      */
     constructor(
-        IERC20 _rewardToken,
+        DaikiToken _rewardToken,
         uint256 _startBlock,
         address _daoAddress,
         uint256 _rewardTokenPerBlock,
@@ -246,7 +247,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         .mul(rewardTokenPerBlock)
         .mul(pool.allocPoint)
         .div(totalAllocPoint);
-
+        rewardToken.mint(daoAddress, rewardTokenReward.div(10));
+        rewardToken.mint(address(this), rewardTokenReward);
         pool.accRewardTokenPerShare = pool.accRewardTokenPerShare.add(
             rewardTokenReward.mul(PRECISION_FACTOR).div(stakedTokenSupply)
         );
@@ -412,7 +414,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
             );
 
             if (referrer != address(0) && commissionAmount > 0) {
-                safeRewardTokenTransfer(referrer, commissionAmount);
+                rewardToken.mint(referrer, commissionAmount);
                 emit ReferralCommissionPaid(_user, referrer, commissionAmount);
             }
         }
@@ -538,8 +540,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         // Get Reward Amount
         uint256 reward_amount = getMiningReward();
 
-        // Mint (transfer) new tokens
-        safeRewardTokenTransfer(msg.sender, reward_amount);
+        // Mint new tokens
+        rewardToken.mint(msg.sender, reward_amount);
 
         // Update total amount of `mined` tokens
         tokensMined = tokensMined.add(reward_amount);
