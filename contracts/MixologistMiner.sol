@@ -78,7 +78,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     uint256 public totalLockedUpRewards;
 
     // REWARD_TOKEN referral contract address.
-    IReferral public referral;
+    IReferral public immutable referral;
     // Referral commission rate in basis points.
     uint16 public referralCommissionRate = 200;
     // Max referral commission rate: 5%.
@@ -100,7 +100,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         uint256 _rewardTokenPerBlock,
         uint256 _miningReward,
         uint256 _maxEmissionRate,
-        uint256 _maxMiningReward
+        uint256 _maxMiningReward,
+        IReferral _referral
     ) Ownable() {
         rewardToken = _rewardToken;
         startBlock = _startBlock;
@@ -109,6 +110,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         miningReward = _miningReward;
         MAX_EMISSION_RATE = _maxEmissionRate;
         MAX_MINING_REWARD = _maxMiningReward;
+        referral = _referral;
 
         uint256 decimalsRewardToken = uint256(rewardToken.decimals());
         require(
@@ -396,12 +398,6 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         massUpdatePools();
         rewardTokenPerBlock = _rewardTokenPerBlock;
         emit UpdateEmissionRate(msg.sender, _rewardTokenPerBlock);
-    }
-
-    // Update the referral contract address by the owner
-    function setReferralAddress(IReferral _referral) external onlyOwner {
-        referral = _referral;
-        emit SetReferralAddress(msg.sender, _referral);
     }
 
     // Update referral commission rate by the owner
