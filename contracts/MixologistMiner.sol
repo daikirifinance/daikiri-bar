@@ -59,8 +59,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     address public daoAddress;
     // REWARD_TOKEN tokens created per block.
     uint256 public rewardTokenPerBlock;
-    // Max harvest interval: 24 hrs
-    uint256 public constant MAXIMUM_HARVEST_INTERVAL = 86400; // 24 hrs
+    // Max harvest interval: 6 hrs
+    uint256 public constant MAXIMUM_HARVEST_INTERVAL = 21600; // 6 hrs
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
