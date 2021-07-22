@@ -623,7 +623,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
             .sub(100)
             .limitLessThan(1000); // always between 0 and 1000
 
-            // Make it harder
+            // Make it easier
             miningTarget = miningTarget.add(miningTarget.div(2000)).mul(
                 shortage_block_pct_extra
             ); // by up to 50%
