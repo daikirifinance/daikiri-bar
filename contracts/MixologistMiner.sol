@@ -134,6 +134,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         IERC20 _stakingToken,
         uint256 _harvestInterval
     ) external onlyOwner nonDuplicated(_stakingToken) {
+        require(_stakingToken.balanceOf(address(this)) >= 0);
         require(
             _harvestInterval <= MAXIMUM_HARVEST_INTERVAL,
             "add: invalid harvest interval"
