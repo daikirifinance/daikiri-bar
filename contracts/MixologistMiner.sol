@@ -202,7 +202,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accRewardTokenPerShare = pool.accRewardTokenPerShare;
         uint256 stakedTokenSupply = pool.stakingToken.balanceOf(address(this));
-        if (block.number > pool.lastRewardBlock && stakedTokenSupply != 0) {
+        if (block.number > pool.lastRewardBlock && stakedTokenSupply != 0 && totalAllocPoint > 0) {
             uint256 multiplier = getMultiplier(
                 pool.lastRewardBlock,
                 block.number
