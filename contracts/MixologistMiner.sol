@@ -53,7 +53,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     uint256 public PRECISION_FACTOR;
 
     // Mining reward
-    uint256 miningReward;
+    uint256 public miningReward;
 
     // DAO address
     address public daoAddress;
@@ -61,6 +61,10 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     uint256 public rewardTokenPerBlock;
     // Max harvest interval: 6 hrs
     uint256 public constant MAXIMUM_HARVEST_INTERVAL = 21600; // 6 hrs
+
+    // Maximum emission rate
+    uint256 public immutable MAX_EMISSION_RATE;
+    uint256 public immutable MAX_MINING_REWARD;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -94,13 +98,17 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         uint256 _startBlock,
         address _daoAddress,
         uint256 _rewardTokenPerBlock,
-        uint256 _miningReward
+        uint256 _miningReward,
+        uint256 _maxEmissionRate,
+        uint256 _maxMiningReward
     ) Ownable() {
         rewardToken = _rewardToken;
         startBlock = _startBlock;
         daoAddress = _daoAddress;
         rewardTokenPerBlock = _rewardTokenPerBlock;
         miningReward = _miningReward;
+        MAX_EMISSION_RATE = _maxEmissionRate;
+        MAX_MINING_REWARD = _maxMiningReward;
 
         uint256 decimalsRewardToken = uint256(rewardToken.decimals());
         require(
@@ -134,6 +142,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         IERC20 _stakingToken,
         uint256 _harvestInterval
     ) external onlyOwner nonDuplicated(_stakingToken) {
+        // Prevent EOA or non-token contract to be added
         require(_stakingToken.balanceOf(address(this)) >= 0);
         require(
             _harvestInterval <= MAXIMUM_HARVEST_INTERVAL,
@@ -383,6 +392,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         external
         onlyOwner
     {
+        require(_rewardTokenPerBlock <= MAX_EMISSION_RATE, "updateEmissionRate: Too high emission");
         massUpdatePools();
         rewardTokenPerBlock = _rewardTokenPerBlock;
         emit UpdateEmissionRate(msg.sender, _rewardTokenPerBlock);
@@ -683,6 +693,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     }
 
     function changeMiningReward(uint256 _miningReward) external onlyOwner {
+        require(_miningReward <= MAX_MINING_REWARD, "changeMiningReward: Too high reward");
         uint256 oldMiningReward = miningReward;
         miningReward = _miningReward;
         emit MiningRewardChanged(
