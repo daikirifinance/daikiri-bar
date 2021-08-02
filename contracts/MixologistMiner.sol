@@ -49,6 +49,12 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     // The REWARD_TOKEN TOKEN!
     DaikiToken public rewardToken;
 
+    // The collateral token for mining
+    IERC20 public collateralToken;
+
+    // The required collateral amount for miners
+    uint256 public requiredCollateralAmount;
+
     // Precission factor
     uint256 public PRECISION_FACTOR;
 
@@ -101,7 +107,9 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         uint256 _miningReward,
         uint256 _maxEmissionRate,
         uint256 _maxMiningReward,
-        IReferral _referral
+        IReferral _referral,
+        IERC20 _collateralToken,
+        uint256 _requiredCollateralAmount
     ) Ownable() {
         rewardToken = _rewardToken;
         startBlock = _startBlock;
@@ -111,6 +119,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         MAX_EMISSION_RATE = _maxEmissionRate;
         MAX_MINING_REWARD = _maxMiningReward;
         referral = _referral;
+        collateralToken = _collateralToken;
+        requiredCollateralAmount = _requiredCollateralAmount;
 
         uint256 decimalsRewardToken = uint256(rewardToken.decimals());
         require(
@@ -204,24 +214,28 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accRewardTokenPerShare = pool.accRewardTokenPerShare;
         uint256 stakedTokenSupply = pool.stakingToken.balanceOf(address(this));
-        if (block.number > pool.lastRewardBlock && stakedTokenSupply != 0 && totalAllocPoint > 0) {
+        if (
+            block.number > pool.lastRewardBlock &&
+            stakedTokenSupply != 0 &&
+            totalAllocPoint > 0
+        ) {
             uint256 multiplier = getMultiplier(
                 pool.lastRewardBlock,
                 block.number
             );
             uint256 rewardTokenReward = multiplier
-            .mul(rewardTokenPerBlock)
-            .mul(pool.allocPoint)
-            .div(totalAllocPoint);
+                .mul(rewardTokenPerBlock)
+                .mul(pool.allocPoint)
+                .div(totalAllocPoint);
             accRewardTokenPerShare = accRewardTokenPerShare.add(
                 rewardTokenReward.mul(PRECISION_FACTOR).div(stakedTokenSupply)
             );
         }
         uint256 pending = user
-        .amount
-        .mul(accRewardTokenPerShare)
-        .div(PRECISION_FACTOR)
-        .sub(user.rewardDebt);
+            .amount
+            .mul(accRewardTokenPerShare)
+            .div(PRECISION_FACTOR)
+            .sub(user.rewardDebt);
         return pending.add(user.rewardLockedUp);
     }
 
@@ -256,9 +270,9 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         }
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
         uint256 rewardTokenReward = multiplier
-        .mul(rewardTokenPerBlock)
-        .mul(pool.allocPoint)
-        .div(totalAllocPoint);
+            .mul(rewardTokenPerBlock)
+            .mul(pool.allocPoint)
+            .div(totalAllocPoint);
         rewardToken.mint(daoAddress, rewardTokenReward.div(10));
         rewardToken.mint(address(this), rewardTokenReward);
         pool.accRewardTokenPerShare = pool.accRewardTokenPerShare.add(
@@ -343,10 +357,10 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         }
 
         uint256 pending = user
-        .amount
-        .mul(pool.accRewardTokenPerShare)
-        .div(PRECISION_FACTOR)
-        .sub(user.rewardDebt);
+            .amount
+            .mul(pool.accRewardTokenPerShare)
+            .div(PRECISION_FACTOR)
+            .sub(user.rewardDebt);
 
         if (canHarvest(_pid, msg.sender)) {
             if (pending > 0 || user.rewardLockedUp > 0) {
@@ -394,7 +408,10 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         external
         onlyOwner
     {
-        require(_rewardTokenPerBlock <= MAX_EMISSION_RATE, "updateEmissionRate: Too high emission");
+        require(
+            _rewardTokenPerBlock <= MAX_EMISSION_RATE,
+            "updateEmissionRate: Too high emission"
+        );
         massUpdatePools();
         rewardTokenPerBlock = _rewardTokenPerBlock;
         emit UpdateEmissionRate(msg.sender, _rewardTokenPerBlock);
@@ -544,6 +561,13 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
             return false;
         }
 
+        // Check required collateral
+        uint256 collateral_amount = collateralToken.balanceOf(msg.sender);
+        require(
+            collateral_amount >= requiredCollateralAmount,
+            "MixologistMiner::mint:insufficient-collateral"
+        );
+
         // Get Reward Amount
         uint256 reward_amount = getMiningReward();
 
@@ -602,11 +626,11 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         // if there were less eth blocks passed in time than expected
         if (ethBlocksSinceLastDifficultyPeriod < targetEthBlocksPerDiffPeriod) {
             uint256 excess_block_pct = (targetEthBlocksPerDiffPeriod.mul(100))
-            .div(ethBlocksSinceLastDifficultyPeriod);
+                .div(ethBlocksSinceLastDifficultyPeriod);
 
             uint256 excess_block_pct_extra = excess_block_pct
-            .sub(100)
-            .limitLessThan(1000);
+                .sub(100)
+                .limitLessThan(1000);
             // If there were 5% more blocks  mined than expected then this is 5. If there were 100% more blocks mined than expected then this is 100.
 
             // Make it harder
@@ -616,12 +640,11 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         } else {
             uint256 shortage_block_pct = (
                 ethBlocksSinceLastDifficultyPeriod.mul(100)
-            )
-            .div(targetEthBlocksPerDiffPeriod);
+            ).div(targetEthBlocksPerDiffPeriod);
 
             uint256 shortage_block_pct_extra = shortage_block_pct
-            .sub(100)
-            .limitLessThan(1000); // always between 0 and 1000
+                .sub(100)
+                .limitLessThan(1000); // always between 0 and 1000
 
             // Make it easier
             miningTarget = miningTarget.add(miningTarget.div(2000)).mul(
@@ -689,7 +712,10 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     }
 
     function changeMiningReward(uint256 _miningReward) external onlyOwner {
-        require(_miningReward <= MAX_MINING_REWARD, "changeMiningReward: Too high reward");
+        require(
+            _miningReward <= MAX_MINING_REWARD,
+            "changeMiningReward: Too high reward"
+        );
         uint256 oldMiningReward = miningReward;
         miningReward = _miningReward;
         emit MiningRewardChanged(
@@ -699,10 +725,29 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         );
     }
 
+    function changeRequiredCollateralAmount(uint256 _newCollateralAmount)
+        public
+        onlyOwner
+    {
+        uint256 oldCollateralAmount = requiredCollateralAmount;
+        requiredCollateralAmount = _newCollateralAmount;
+        emit RequiredCollateralChanged(
+            address(collateralToken),
+            requiredCollateralAmount,
+            oldCollateralAmount
+        );
+    }
+
     event MiningRewardChanged(
         address rewardToken,
         uint256 newMiningReward,
         uint256 oldMiningReward
+    );
+
+    event RequiredCollateralChanged(
+        address collateralToken,
+        uint256 newRequiredCollateral,
+        uint256 oldRequiredCollateral
     );
 
     event Mined(
