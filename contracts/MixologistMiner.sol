@@ -10,9 +10,11 @@ import "./interfaces/ReentrancyGuard.sol";
 import "./interfaces/IReferral.sol";
 import "./DaikiToken.sol";
 
-// Mixologist is the master of new tokens. He can make new tokens and he is a fair guy.
-
-// Have fun reading it. Hopefully it's bug-free. God bless.
+/**
+ * @title Daikiri Finance's Yield Farming Contract
+ * @notice MixologistMiner rewards token stakers and proof-of-work miners with $DAIKI.
+ * @author daikiri.finance
+ */
 contract MixologistMiner is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using ExtendedMath for uint256;
