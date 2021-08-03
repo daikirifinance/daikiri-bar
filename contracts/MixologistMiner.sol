@@ -427,8 +427,10 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
 
     // Update dao address by the previous dao.
     function setDaoAddress(address _daoAddress) external onlyOwner {
+        require(_daoAddress != address(0), "setDaoAddress: ZERO");
+        address oldDaoAddress = daoAddress;
         daoAddress = _daoAddress;
-        emit SetDaoAddress(msg.sender, _daoAddress);
+        emit SetDaoAddress(oldDaoAddress, _daoAddress);
     }
 
     function setFeeAddress(address _feeAddress) external onlyOwner {
@@ -508,11 +510,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         uint256 indexed pid,
         uint256 amount
     );
-    event SetDaoAddress(address indexed user, address indexed newAddress);
-    event SetReferralAddress(
-        address indexed user,
-        IReferral indexed newAddress
-    );
+    event SetDaoAddress(address indexed oldDaoAddress, address indexed newDaoAddress);    
     event UpdateEmissionRate(address indexed user, uint256 rewardTokenPerBlock);
     event ReferralCommissionPaid(
         address indexed user,
