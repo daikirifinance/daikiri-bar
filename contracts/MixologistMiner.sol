@@ -45,6 +45,7 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         uint256 allocPoint; // How many allocation points assigned to this pool. REWARD_TOKENs to distribute per block.
         uint256 lastRewardBlock; // Last block number that REWARD_TOKENs distribution occurs.
         uint256 accRewardTokenPerShare; // Accumulated REWARD_TOKENs per share, times PRECISION_FACTOR. See below.
+        uint256 depositFeeBP; // Deposit fee in basis points
         uint256 harvestInterval; // Harvest interval in seconds
     }
 
@@ -63,6 +64,10 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     // Mining reward
     uint256 public miningReward;
 
+    // Vault Address
+    address public vaultAddress;
+    // Deposit Fee Address
+    address public feeAddress;
     // DAO address
     address public daoAddress;
     // REWARD_TOKEN tokens created per block.
@@ -91,6 +96,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     uint16 public referralCommissionRate = 200;
     // Max referral commission rate: 5%.
     uint16 public constant MAXIMUM_REFERRAL_COMMISSION_RATE = 500;
+    // Max deposit fee: 4%
+    uint256 public constant MAXIMUM_DEPOSIT_FEE = 400;
 
     mapping(IERC20 => bool) public poolExistence;
 
@@ -105,6 +112,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         DaikiToken _rewardToken,
         uint256 _startBlock,
         address _daoAddress,
+        address _feeAddress,
+        address _vaultAddress,
         uint256 _rewardTokenPerBlock,
         uint256 _miningReward,
         uint256 _maxEmissionRate,
@@ -116,6 +125,8 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         rewardToken = _rewardToken;
         startBlock = _startBlock;
         daoAddress = _daoAddress;
+        feeAddress = _feeAddress;
+        vaultAddress = _vaultAddress;
         rewardTokenPerBlock = _rewardTokenPerBlock;
         miningReward = _miningReward;
         MAX_EMISSION_RATE = _maxEmissionRate;
@@ -154,10 +165,12 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     function add(
         uint256 _allocPoint,
         IERC20 _stakingToken,
+        uint256 _depositFeeBP,
         uint256 _harvestInterval
     ) external onlyOwner nonDuplicated(_stakingToken) {
         // Prevent EOA or non-token contract to be added
         require(_stakingToken.balanceOf(address(this)) >= 0);
+        require(_depositFeeBP <= MAXIMUM_DEPOSIT_FEE, "add: invalid deposit fee basis points");
         require(
             _harvestInterval <= MAXIMUM_HARVEST_INTERVAL,
             "add: invalid harvest interval"
@@ -173,18 +186,21 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
                 allocPoint: _allocPoint,
                 lastRewardBlock: lastRewardBlock,
                 accRewardTokenPerShare: 0,
+                depositFeeBP: _depositFeeBP,
                 harvestInterval: _harvestInterval
             })
         );
-        emit Add(_allocPoint, address(_stakingToken), _harvestInterval);
+        emit Add(_allocPoint, address(_stakingToken), _depositFeeBP, _harvestInterval);
     }
 
     // Update the given pool's REWARD_TOKEN allocation point. Can only be called by the owner.
     function set(
         uint256 _pid,
         uint256 _allocPoint,
+        uint256 _depositFeeBP,
         uint256 _harvestInterval
     ) external onlyOwner {
+        require(_depositFeeBP <= MAXIMUM_DEPOSIT_FEE, "set: invalid deposit fee basis points");
         require(
             _harvestInterval <= MAXIMUM_HARVEST_INTERVAL,
             "set: invalid harvest interval"
@@ -193,8 +209,9 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
             _allocPoint
         );
         poolInfo[_pid].allocPoint = _allocPoint;
+        poolInfo[_pid].depositFeeBP = _depositFeeBP;
         poolInfo[_pid].harvestInterval = _harvestInterval;
-        emit Set(_pid, _allocPoint, _harvestInterval);
+        emit Set(_pid, _allocPoint, _depositFeeBP, _harvestInterval);
     }
 
     // Return reward multiplier over the given _from to _to block.
@@ -311,7 +328,15 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
             _amount = pool.stakingToken.balanceOf(address(this)).sub(
                 balanceBefore
             );
-            user.amount = user.amount.add(_amount);
+
+            if(pool.depositFeeBP > 0) {
+                uint256 depositFee = _amount.mul(pool.depositFeeBP).div(10000);
+                pool.stakingToken.safeTransfer(feeAddress, depositFee.div(2));
+                pool.stakingToken.safeTransfer(vaultAddress, depositFee.div(2));
+                user.amount = user.amount.add(_amount).sub(depositFee);
+            } else {
+                user.amount = user.amount.add(_amount);
+            }
         }
         user.rewardDebt = user.amount.mul(pool.accRewardTokenPerShare).div(
             PRECISION_FACTOR
@@ -406,6 +431,20 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
         emit SetDaoAddress(msg.sender, _daoAddress);
     }
 
+    function setFeeAddress(address _feeAddress) external onlyOwner {
+        require(_feeAddress != address(0), "setFeeAddress: ZERO");
+        address oldFeeAddress = feeAddress;
+        feeAddress = _feeAddress;
+        emit SetFeeAddress(oldFeeAddress, feeAddress);
+    }
+
+    function setVaultAddress(address _vaultAddress) external onlyOwner {
+        require(_vaultAddress != address(0), "setVaultAddress: ZERO");
+        address oldVaultAddress = vaultAddress;
+        vaultAddress = _vaultAddress;
+        emit SetVaultAddress(oldVaultAddress, vaultAddress);
+    }
+
     function updateEmissionRate(uint256 _rewardTokenPerBlock)
         external
         onlyOwner
@@ -488,10 +527,13 @@ contract MixologistMiner is Ownable, ReentrancyGuard {
     event Add(
         uint256 allocPoint,
         address stakingToken,
+        uint256 depositFeeBP,
         uint256 harvestInterval
     );
-    event Set(uint256 pid, uint256 allocPoint, uint256 harvestInterval);
+    event Set(uint256 pid, uint256 allocPoint, uint256 depositFeeBP, uint256 harvestInterval);
     event UpdateStartBlock(uint256 startBlock);
+    event SetFeeAddress(address oldFeeAddress, address newFeeAddress);
+    event SetVaultAddress(address oldVaultAddress, address newVaultAddress);
 
     /* PoW MINING */
 
