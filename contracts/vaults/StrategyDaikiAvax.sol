@@ -9,7 +9,7 @@ import "../libraries/EnumerableSet.sol";
 import "../libraries/SafeMath.sol";
 import "../libraries/SafeERC20.sol";
 
-contract StrategyDaiki is Ownable, ReentrancyGuard, Pausable {
+contract StrategyDaikiAvax is Ownable, ReentrancyGuard, Pausable {
 
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -33,8 +33,8 @@ contract StrategyDaiki is Ownable, ReentrancyGuard, Pausable {
          */
     }
 
-    address public constant usdcAddress = 0x985458E523dB3d53125813eD68c274899e9DfAb4;
-    address public constant wantAddress = 0xF315803Ba9dA293765ab163E7dB98E8d6Df6D361;
+    address public constant usdcAddress = 0xc7198437980c041c805A1EDcbA50c1Ce5db95118;
+    address public constant wantAddress = 0xe896CDeaAC9615145c0cA09C8Cd5C25bced6384c;
     address public constant feeAddress = 0x000000000000000000000000000000000000dEaD;
 
     address public vaultChefAddress;

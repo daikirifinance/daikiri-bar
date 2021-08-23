@@ -28,10 +28,19 @@ contract VaultChef is Ownable, ReentrancyGuard, Operators {
     mapping(uint256 => mapping(address => UserInfo)) public userInfo; // Info of each user that stakes LP tokens.
     mapping(address => bool) private strats;
 
+    modifier onlyEOA() {
+        require(tx.origin == msg.sender, "Only EOA");
+        _;
+    }
+
     event AddPool(address indexed strat);
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
-    event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
+    event EmergencyWithdraw(
+        address indexed user,
+        uint256 indexed pid,
+        uint256 amount
+    );
 
     function poolLength() external view returns (uint256) {
         return poolInfo.length;
@@ -54,12 +63,17 @@ contract VaultChef is Ownable, ReentrancyGuard, Operators {
     }
 
     // View function to see staked Want tokens on frontend.
-    function stakedWantTokens(uint256 _pid, address _user) external view returns (uint256) {
+    function stakedWantTokens(uint256 _pid, address _user)
+        external
+        view
+        returns (uint256)
+    {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
 
         uint256 sharesTotal = IStrategy(pool.strat).sharesTotal();
-        uint256 wantLockedTotal = IStrategy(poolInfo[_pid].strat).wantLockedTotal();
+        uint256 wantLockedTotal = IStrategy(poolInfo[_pid].strat)
+            .wantLockedTotal();
         if (sharesTotal == 0) {
             return 0;
         }
@@ -72,18 +86,29 @@ contract VaultChef is Ownable, ReentrancyGuard, Operators {
     }
 
     // For unique contract calls
-    function deposit(uint256 _pid, uint256 _wantAmt, address _to) external nonReentrant onlyOperator {
+    function deposit(
+        uint256 _pid,
+        uint256 _wantAmt,
+        address _to
+    ) external nonReentrant onlyOperator {
         _deposit(_pid, _wantAmt, _to);
     }
-    
-    function _deposit(uint256 _pid, uint256 _wantAmt, address _to) internal {
+
+    function _deposit(
+        uint256 _pid,
+        uint256 _wantAmt,
+        address _to
+    ) internal {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_to];
-        
+
         if (_wantAmt > 0) {
             pool.want.safeTransferFrom(msg.sender, address(this), _wantAmt);
 
-            uint256 sharesAdded = IStrategy(poolInfo[_pid].strat).deposit(_to, _wantAmt);
+            uint256 sharesAdded = IStrategy(poolInfo[_pid].strat).deposit(
+                _to,
+                _wantAmt
+            );
             user.shares = user.shares.add(sharesAdded);
         }
         emit Deposit(_to, _pid, _wantAmt);
@@ -95,15 +120,24 @@ contract VaultChef is Ownable, ReentrancyGuard, Operators {
     }
 
     // For unique contract calls
-    function withdraw(uint256 _pid, uint256 _wantAmt, address _to) external nonReentrant onlyOperator {
+    function withdraw(
+        uint256 _pid,
+        uint256 _wantAmt,
+        address _to
+    ) external nonReentrant onlyOperator {
         _withdraw(_pid, _wantAmt, _to);
     }
 
-    function _withdraw(uint256 _pid, uint256 _wantAmt, address _to) internal {
+    function _withdraw(
+        uint256 _pid,
+        uint256 _wantAmt,
+        address _to
+    ) internal {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
 
-        uint256 wantLockedTotal = IStrategy(poolInfo[_pid].strat).wantLockedTotal();
+        uint256 wantLockedTotal = IStrategy(poolInfo[_pid].strat)
+            .wantLockedTotal();
         uint256 sharesTotal = IStrategy(poolInfo[_pid].strat).sharesTotal();
 
         require(user.shares > 0, "user.shares is 0");
@@ -115,7 +149,10 @@ contract VaultChef is Ownable, ReentrancyGuard, Operators {
             _wantAmt = amount;
         }
         if (_wantAmt > 0) {
-            uint256 sharesRemoved = IStrategy(poolInfo[_pid].strat).withdraw(msg.sender, _wantAmt);
+            uint256 sharesRemoved = IStrategy(poolInfo[_pid].strat).withdraw(
+                msg.sender,
+                _wantAmt
+            );
 
             if (sharesRemoved > user.shares) {
                 user.shares = 0;
@@ -138,7 +175,7 @@ contract VaultChef is Ownable, ReentrancyGuard, Operators {
     }
 
     function resetAllowances() external onlyOwner {
-        for (uint256 i=0; i<poolInfo.length; i++) {
+        for (uint256 i = 0; i < poolInfo.length; i++) {
             PoolInfo storage pool = poolInfo[i];
             pool.want.safeApprove(pool.strat, uint256(0));
             pool.want.safeIncreaseAllowance(pool.strat, uint256(-1));
